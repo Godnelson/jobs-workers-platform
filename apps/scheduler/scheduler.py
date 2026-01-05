@@ -45,16 +45,20 @@ async def enqueue_due_jobs() -> None:
         log.info("scheduler_enqueued", count=len(jobs))
 
 
-def main() -> None:
+async def run_scheduler() -> None:
     settings = load_settings()
     configure_logging(settings.log_level)
 
     scheduler = AsyncIOScheduler(timezone="UTC")
-    scheduler.add_job(lambda: asyncio.create_task(enqueue_due_jobs()), "interval", seconds=5, id="enqueue_due")
+    scheduler.add_job(enqueue_due_jobs, "interval", seconds=5, id="enqueue_due")
     scheduler.start()
 
     log.info("scheduler_started")
-    asyncio.get_event_loop().run_forever()
+    await asyncio.Event().wait()
+
+
+def main() -> None:
+    asyncio.run(run_scheduler())
 
 
 if __name__ == "__main__":
