@@ -24,6 +24,7 @@ def upgrade() -> None:
         "cancelled",
         "retrying",
         name="job_status",
+        create_type=False,
     )
     job_status_enum.create(op.get_bind(), checkfirst=True)
 
