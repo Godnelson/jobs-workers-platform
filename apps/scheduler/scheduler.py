@@ -23,7 +23,7 @@ async def enqueue_due_jobs() -> None:
     init_engine(settings.database_url)
     Session = get_sessionmaker()
 
-    redis = Redis.from_url(settings.redis_url, decode_responses=True)
+    redis = Redis.from_url(settings.redis_url, decode_responses=False)
     q = Queue(settings.rq_queue_name, connection=redis)
 
     now = datetime.now(timezone.utc)
@@ -34,9 +34,14 @@ async def enqueue_due_jobs() -> None:
             .where(Job.status.in_([JobStatus.queued, JobStatus.retrying]))
             .where((Job.next_run_at.is_(None)) | (Job.next_run_at <= now))
             .order_by(Job.created_at.asc())
+            .with_for_update(skip_locked=True)
             .limit(200)
         )
         jobs = (await session.scalars(stmt)).all()
+        for job in jobs:
+            job.status = JobStatus.running
+            job.next_run_at = None
+        await session.commit()
 
     for j in jobs:
         q.enqueue("apps.worker.tasks.execute_job", str(j.id), job_timeout=600)
@@ -45,16 +50,20 @@ async def enqueue_due_jobs() -> None:
         log.info("scheduler_enqueued", count=len(jobs))
 
 
-def main() -> None:
+async def run_scheduler() -> None:
     settings = load_settings()
     configure_logging(settings.log_level)
 
     scheduler = AsyncIOScheduler(timezone="UTC")
-    scheduler.add_job(lambda: asyncio.create_task(enqueue_due_jobs()), "interval", seconds=5, id="enqueue_due")
+    scheduler.add_job(enqueue_due_jobs, "interval", seconds=5, id="enqueue_due")
     scheduler.start()
 
     log.info("scheduler_started")
-    asyncio.get_event_loop().run_forever()
+    await asyncio.Event().wait()
+
+
+def main() -> None:
+    asyncio.run(run_scheduler())
 
 
 if __name__ == "__main__":
