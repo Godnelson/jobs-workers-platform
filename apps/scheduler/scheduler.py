@@ -34,9 +34,14 @@ async def enqueue_due_jobs() -> None:
             .where(Job.status.in_([JobStatus.queued, JobStatus.retrying]))
             .where((Job.next_run_at.is_(None)) | (Job.next_run_at <= now))
             .order_by(Job.created_at.asc())
+            .with_for_update(skip_locked=True)
             .limit(200)
         )
         jobs = (await session.scalars(stmt)).all()
+        for job in jobs:
+            job.status = JobStatus.running
+            job.next_run_at = None
+        await session.commit()
 
     for j in jobs:
         q.enqueue("apps.worker.tasks.execute_job", str(j.id), job_timeout=600)
