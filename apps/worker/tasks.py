@@ -24,7 +24,9 @@ def backoff_seconds(attempt: int) -> int:
 
 def execute_job(job_id: str) -> None:
     # RQ entrypoint must be sync; we delegate to async
-    asyncio.run(_execute_job_async(UUID(job_id)))
+    import asyncio as _asyncio
+
+    _asyncio.run(_execute_job_async(UUID(job_id)))
 
 
 async def _execute_job_async(job_id: UUID) -> None:
