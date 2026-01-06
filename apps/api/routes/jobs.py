@@ -13,6 +13,7 @@ from apps.api.models import Job, JobStatus
 from apps.api.settings import load_settings
 from apps.api.utils import to_job_response
 from apps.api.deps import get_session
+from apps.task_registry import list_task_names
 
 log = structlog.get_logger()
 router = APIRouter(prefix="/v1/jobs", tags=["jobs"])
@@ -23,6 +24,12 @@ async def create_job(req: CreateJobRequest, session: AsyncSession = Depends(get_
     settings = load_settings()
     now = datetime.now(timezone.utc)
     next_run_at = req.run_at or now
+    task_names = list_task_names()
+    if req.task_name not in task_names:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unknown task_name: {req.task_name}. Available: {', '.join(task_names)}",
+        )
 
     job = Job(
         status=JobStatus.queued if next_run_at <= now else JobStatus.queued,
