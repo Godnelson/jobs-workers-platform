@@ -16,12 +16,22 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute("CREATE TYPE job_status AS ENUM ('queued','running','succeeded','failed','cancelled','retrying')")
+    job_status_enum = postgresql.ENUM(
+        "queued",
+        "running",
+        "succeeded",
+        "failed",
+        "cancelled",
+        "retrying",
+        name="job_status",
+        create_type=False,
+    )
+    job_status_enum.create(op.get_bind(), checkfirst=True)
 
     op.create_table(
         "jobs",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("status", sa.Enum(name="job_status"), nullable=False),
+        sa.Column("status", job_status_enum, nullable=False),
         sa.Column("task_name", sa.String(length=120), nullable=False),
         sa.Column("payload", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=sa.text("'{}'::jsonb")),
         sa.Column("idempotency_key", sa.String(length=200), nullable=False),
@@ -42,4 +52,4 @@ def downgrade() -> None:
     op.drop_index("ix_jobs_status", table_name="jobs")
     op.drop_constraint("uq_jobs_idempotency_key", "jobs", type_="unique")
     op.drop_table("jobs")
-    op.execute("DROP TYPE job_status")
+    postgresql.ENUM(name="job_status").drop(op.get_bind(), checkfirst=True)
