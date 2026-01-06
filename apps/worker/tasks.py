@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timedelta, timezone
-from typing import Any
 from uuid import UUID
 
 import structlog
@@ -15,25 +14,9 @@ from apps.api.db import get_sessionmaker, init_engine
 from apps.api.models import Job, JobStatus
 from apps.api.settings import load_settings
 from apps.worker.common import redis_lock
+from apps.task_registry import get_task
 
 log = structlog.get_logger()
-
-# ---- Task registry ----
-async def task_echo(payload: dict[str, Any]) -> dict[str, Any]:
-    return {"ok": True, "echo": payload}
-
-
-async def task_sleep(payload: dict[str, Any]) -> dict[str, Any]:
-    seconds = float(payload.get("seconds", 1))
-    await asyncio.sleep(seconds)
-    return {"ok": True, "slept": seconds}
-
-
-TASKS: dict[str, Any] = {
-    "echo": task_echo,
-    "sleep": task_sleep,
-}
-
 
 def backoff_seconds(attempt: int) -> int:
     # Exponential backoff with cap
@@ -78,7 +61,7 @@ async def _execute_job_async(job_id: UUID) -> None:
             job.attempts += 1
             await session.commit()
 
-            task = TASKS.get(job.task_name)
+            task = get_task(job.task_name)
             if not task:
                 job.status = JobStatus.failed
                 job.last_error = f"Unknown task_name: {job.task_name}"
