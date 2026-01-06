@@ -23,7 +23,7 @@ async def enqueue_due_jobs() -> None:
     init_engine(settings.database_url)
     Session = get_sessionmaker()
 
-    redis = Redis.from_url(settings.redis_url, decode_responses=True)
+    redis = Redis.from_url(settings.redis_url, decode_responses=False)
     q = Queue(settings.rq_queue_name, connection=redis)
 
     now = datetime.now(timezone.utc)

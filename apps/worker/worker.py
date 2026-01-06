@@ -9,7 +9,7 @@ def main() -> None:
     settings = load_settings()
     configure_logging(settings.log_level)
 
-    redis = Redis.from_url(settings.redis_url, decode_responses=True)
+    redis = Redis.from_url(settings.redis_url, decode_responses=False)
     q = Queue(settings.rq_queue_name, connection=redis)
 
     with Connection(redis):
